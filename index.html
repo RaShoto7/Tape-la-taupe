@@ -1,0 +1,1724 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>Tape-la-taupe — Ultra 3D Enhanced</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --glass: rgba(255,255,255,.14);
+  --glass-strong: rgba(255,255,255,.22);
+  --border: rgba(255,255,255,.35);
+  --text: #ecf0f1;
+  --accent: #feca57;
+  --danger: #e74c3c;
+  --ok: #27ae60;
+  --text-shadow: 1px 1px 2px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.8), 1px -1px 2px rgba(0,0,0,0.8), -1px 1px 2px rgba(0,0,0,0.8);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:'Fredoka',system-ui; color:var(--text); overflow:hidden;
+  background: radial-gradient(1200px 600px at 75% 30%, #214a67 0%, #142837 40%, #0c1822 100%);
+  user-select:none; -webkit-user-select:none; touch-action:none;
+  text-shadow: var(--text-shadow);
+  transition: background .6s ease;
+}
+body.sunset{
+  background: radial-gradient(1200px 600px at 70% 25%, #ffb25e 0%, #cc7a3a 40%, #3a1f16 100%);
+}
+body.night{
+  background: radial-gradient(1200px 600px at 60% 20%, #0b1020 0%, #060a14 45%, #03060c 100%);
+}
+body.eruption { animation: screenShake 4s ease-in-out;
+  background: radial-gradient(1200px 600px at 75% 30%, #8b2c1b 0%, #4a1810 40%, #1a0605 100%); }
+@keyframes screenShake {
+  0%, 100% { transform: translate(0, 0); }
+  10%, 30%, 50%, 70%, 90% { transform: translate(-2px, -2px); }
+  20%, 40%, 60%, 80% { transform: translate(2px, 2px); }
+}
+
+#gameContainer{position:relative;width:100vw;height:100vh; cursor: crosshair;}
+#three-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+/* étoiles */
+#starsCanvas{ position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.9; }
+
+/* halos + nuages d'accueil */
+.bg-halo::before,.bg-halo::after{
+  content:""; position:absolute; width:120vmax; height:120vmax; border-radius:50%;
+  filter: blur(70px); opacity:.22; z-index:0; animation:orb 28s linear infinite;
+}
+.bg-halo::before{background:#4ecdc4; left:-25vmax; top:-20vmax}
+.bg-halo::after{background:#ff6b6b; right:-30vmax; bottom:-25vmax; animation-duration:36s}
+@keyframes orb{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.cloud{ position:absolute; opacity:.2; filter:drop-shadow(0 8px 12px rgba(0,0,0,.25)); z-index:0 }
+.cloud svg{ fill:#fff }
+.cloud.c1{ left:-160px; top:18%; width:160px; animation:float 42s linear infinite }
+.cloud.c2{ left:-120px; top:36%; width:120px; animation:float 55s linear infinite 8s }
+.cloud.c3{ left:-240px; top:62%; width:220px; animation:float 48s linear infinite 16s }
+@keyframes float{ from{transform:translateX(0)} to{transform:translateX(110vw)} }
+
+/* PANNEAUX / HUD */
+.panel{
+  background:var(--glass); border:1px solid var(--border); backdrop-filter: blur(14px);
+  border-radius:18px; box-shadow:0 20px 40px rgba(0,0,0,.35) inset, 0 8px 24px rgba(0,0,0,.35);
+}
+.header{
+  position:absolute; left:20px; right:20px; top:20px; z-index:20;
+  display:flex; align-items:center; justify-content:space-between; padding:12px 16px; height:64px;
+  transition: opacity .18s ease;
+}
+.hud-left{display:flex; gap:16px; align-items:center}
+.hud-score{ font-weight:800; font-size:22px; letter-spacing:.5px; display:flex; align-items:center; gap:10px; }
+.hud-score b{ font-size:34px; line-height:1; padding:2px 10px; border-radius:10px; background:rgba(255,255,255,.10); color:var(--accent); }
+/* chrono */
+.hud-time{
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  font-weight:800; font-size:20px; font-variant-numeric: tabular-nums;
+}
+.hud-time b{font-size:28px;}
+.hud-time b.low{color:var(--danger)}
+.hud-time.flash{ animation: tflash .35s ease-out }
+@keyframes tflash{ 0%{transform:translate(-50%,-50%) scale(1)} 40%{transform:translate(-50%,-50%) scale(1.12)} 100%{transform:translate(-50%,-50%) scale(1)}}
+.hud-combo{
+  position:absolute; left:50%; transform:translateX(-50%); top:60px; font-weight:700; font-size:18px; 
+  color:var(--accent); opacity:0; transition:opacity 0.3s;
+}
+.hud-combo.active{opacity:1; animation:pulse 0.5s ease-out}
+@keyframes pulse{0%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.2)}100%{transform:translateX(-50%) scale(1)}}
+
+/* MENUS */
+.menu{ position:absolute; inset:0; display:none; align-items:center; justify-content:center; flex-direction:column; z-index:10; }
+.menu.active{ display:flex; animation:menuSlideIn .5s cubic-bezier(0.4,0,0.2,1) }
+@keyframes menuSlideIn { from{opacity:0;transform:translateY(30px) scale(.95)} to{opacity:1;transform:translateY(0) scale(1)} }
+.menu.sliding-out { animation: menuSlideOut .3s ease-out forwards }
+@keyframes menuSlideOut { to{opacity:0; transform:translateY(-20px) scale(.95)} }
+.menu .panel{ backdrop-filter:none!important; -webkit-backdrop-filter:none!important; background:var(--glass); }
+
+/* SCORES */
+.lists-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:20px;
+  align-items:start;
+}
+@media (max-width:768px){
+  .lists-grid{ grid-template-columns: 1fr; }
+}
+#scores .card.panel { max-width: 1000px !important; width: 90vw; padding: 36px; }
+.card{ padding:28px; margin:16px; text-align:left; }
+.section-title{ font-weight:800; margin:6px 0 10px 0; opacity:.9; }
+.list{ line-height:2; font-size: 18px; }
+.stats-grid{ display:grid; grid-template-columns: repeat(2, minmax(250px,1fr)); gap:14px; margin-top: 20px; }
+.stat{ padding:14px 18px; border-radius:10px; background:rgba(255,255,255,.10); font-size: 16px; }
+
+.title{
+  font-family:"Press Start 2P", monospace; font-size: clamp(32px, 6vw, 84px);
+  text-align:center; margin-bottom:32px; letter-spacing:4px;
+  animation:breath 4s ease-in-out infinite;
+}
+@keyframes breath{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+
+/* Boutons */
+.btn{
+  position:relative; appearance:none; border:1px solid var(--border); color:#fff; font-weight:700; letter-spacing:1px;
+  background:linear-gradient(180deg, var(--glass-strong), rgba(255,255,255,.08));
+  padding:16px 42px; border-radius:14px; cursor:pointer; margin:10px auto; font-size:22px;
+  box-shadow: 0 10px 26px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.06);
+  transition: all .15s ease;
+}
+.btn:hover{ background:linear-gradient(180deg, rgba(255,255,255,.25), rgba(255,255,255,.12)); transform:translateY(-2px) }
+.btn:active{ transform:translateY(0) scale(.98) }
+.btn.small{ font-size:18px; padding:12px 22px }
+.btn.anim{ overflow:hidden }
+.btn.anim .ripple{ position:absolute; width:10px; height:10px; border-radius:999px; pointer-events:none; background:radial-gradient(circle, rgba(255,255,255,.35), rgba(255,255,255,0) 70%); transform:translate(-50%,-50%) scale(0); opacity:.8; animation:ripple .55s ease-out forwards }
+@keyframes ripple{ to{ transform:translate(-50%,-50%) scale(12); opacity:0 } }
+
+/* Pop points */
+.pop{ position:fixed; font-weight:900; font-size:42px; pointer-events:none; animation:pop 1.1s ease-out forwards; z-index:30; }
+@keyframes pop{ from{ transform:translate(-50%,-50%) scale(.7); opacity:1 } to{ transform:translate(-50%,-160%) scale(1.3); opacity:0 } }
+
+/* Pop chrono */
+.time-pop{ position:fixed; z-index:50; font-weight:900; font-size:28px; transform:translate(-50%,-50%) scale(.9); animation:timepop .9s ease-out forwards }
+@keyframes timepop{ 30%{transform:translate(-50%,-90%) scale(1.2)} 100%{transform:translate(-50%,-160%) scale(1); opacity:0} }
+
+/* MUSIQUE (haut-droite) */
+.mus{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  position:fixed;
+  right:20px;
+  top:20px;
+  z-index:25;
+}
+.mus .toggle{
+  width:44px; height:44px; display:grid; place-items:center; border-radius:12px; cursor:pointer;
+  background:linear-gradient(180deg, rgba(255,255,255,.24), rgba(255,255,255,.10));
+  border:1px solid var(--border);
+  margin-bottom:8px;
+}
+.mus .slider{
+  position:absolute; top:calc(100% + 8px); left:50%; transform:translateX(-50%) scaleY(0);
+  transform-origin:top center; width:54px; height:160px; opacity:0; overflow:hidden;
+  background:var(--glass); border:1px solid var(--border); border-radius:14px; padding:8px;
+  transition:transform .25s ease, opacity .25s ease; pointer-events:none; display:flex; justify-content:center;
+}
+.mus:hover .slider, .mus.open .slider{ transform:translateX(-50%) scaleY(1); opacity:1; pointer-events:auto; }
+.mus .slider input[type=range]{ writing-mode: bt-lr; -webkit-appearance: slider-vertical; appearance: slider-vertical; width:100%; height:100%; background:transparent; outline:none; accent-color:rgba(255,255,255,0.7);}
+.slider input[type=range]{ width:140px; accent-color: rgba(255,255,255,0.7); background: transparent; -webkit-appearance: none; appearance: none; outline: none }
+.muted{ opacity:.5 }
+#musicToggle.muted::after { content: ""; position: absolute; width: 100%; height: 3px; background: var(--danger); top: 50%; left: 0%; transform: rotate(-45deg); border-radius: 2px; }
+
+/* OVER */
+.footer-actions{ display:flex; gap:14px; justify-content:center; margin-top:18px }
+.footer-actions .btn{ background:linear-gradient(180deg, rgba(0,0,0,.45), rgba(0,0,0,.25)); border-color:rgba(255,255,255,.5) }
+
+/* Quitter */
+.quit-bubble{
+  position:fixed; left:16px; bottom:16px; z-index:26;
+  padding:10px 16px; font-weight:700; font-size:14px; color:#fff; cursor:pointer;
+  border:1px solid var(--border); border-radius:999px;
+  background:linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.08));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
+  backdrop-filter: blur(10px);
+  transition: transform .18s ease, background .2s ease, opacity .2s ease;
+}
+.quit-bubble:hover{ transform:translateY(-1px) }
+
+/* MODALE DÉTAILS */
+.modal{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:40; background: rgba(0,0,0,0.55) }
+.modal.active{ display:flex; animation: modalFadeIn .3s ease-out }
+@keyframes modalFadeIn { from{opacity:0} to{opacity:1} }
+.modal .box{
+  width:min(820px,94vw);
+  background: var(--glass);
+  border:1px solid var(--border);
+  border-radius:16px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  padding:20px;
+  color: var(--text);
+}
+.modal .close{ position:absolute; top:16px; right:16px; cursor:pointer; font-weight:800 }
+
+/* Règles - vignettes */
+.crea-bar{ display:flex; gap:16px; align-items:center; justify-content:center; margin:16px 0 8px }
+.crea{ display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:12px; background:rgba(255,255,255,.08); border:1px solid var(--border) }
+.crea svg{ width:40px; height:40px; display:block }
+.crea b { font-size: 18px }
+
+@media (max-width:768px){
+  .btn{ font-size:20px; padding:14px 28px }
+  #scores .card.panel { width: 95vw; padding: 24px; }
+  .stats-grid { grid-template-columns: 1fr; }
+}
+
+/* =========================
+   AJOUT — BLOCS DEMANDÉS
+   ========================= */
+.mus:hover .slider,
+.mus.open .slider {
+  height: 160px;
+  opacity: 1;
+  padding: 10px 8px;
+  pointer-events: auto;
+}
+.mus .toggle{
+  position: relative; width: 44px; height: 44px; line-height: 44px; text-align: center;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--glass); user-select: none; cursor: pointer;
+}
+
+/* ==== Défis / Progress bars ==== */
+.challenge-item{ margin:10px 0 14px; }
+.challenge-title{ font-weight:700; display:flex; justify-content:space-between; gap:10px; }
+.challenge-title small{ opacity:.8; font-weight:600; }
+.progress-wrap{ height:12px; background:rgba(255,255,255,.10); border:1px solid var(--border); border-radius:999px; overflow:hidden; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15);}
+.progress-bar{ height:100%; width:0%; background:linear-gradient(90deg, #4ecdc4, #feca57); transition:width .35s ease; }
+.badge-done{ display:inline-block; padding:4px 8px; border-radius:999px; background:rgba(39,174,96,.2); border:1px solid rgba(39,174,96,.5); color:#b6ffd0; font-size:12px; font-weight:800; letter-spacing:.3px; }
+.badge-failed{ display:inline-block; padding:4px 8px; border-radius:999px; background:rgba(231,76,60,.15); border:1px solid rgba(231,76,60,.5); color:#ffd0d0; font-size:12px; font-weight:800; }
+.badge-new{ display:inline-block; padding:4px 8px; border-radius:999px; background:rgba(255,255,255,.12); border:1px solid var(--border); font-size:12px; font-weight:800; }
+
+/* Accessibilité motion */
+@media (prefers-reduced-motion: reduce){
+  .pop, .time-pop { animation: none !important; }
+  body.eruption { animation: none !important; }
+}
+</style>
+</head>
+<body>
+<div id="gameContainer" class="bg-halo">
+  <div id="three-canvas"></div>
+
+  <div class="cloud c1"><svg viewBox="0 0 100 60"><path d="M10 60 Q-10 40 15 30 Q5 10 35 20 Q50 0 65 20 Q85 15 85 35 Q115 40 90 55 Z"/></svg></div>
+  <div class="cloud c2"><svg viewBox="0 0 100 60"><path d="M10 60 Q-10 40 15 30 Q5 10 35 20 Q50 0 65 20 Q85 15 85 35 Q115 40 90 55 Z"/></svg></div>
+  <div class="cloud c3"><svg viewBox="0 0 100 60"><path d="M10 60 Q-10 40 15 30 Q5 10 35 20 Q50 0 65 20 Q85 15 85 35 Q115 40 90 55 Z"/></svg></div>
+
+  <div class="header panel" id="hud" style="display:none">
+    <div class="hud-left">
+      <div class="hud-score">Score : <b id="score">0</b></div>
+    </div>
+    <div class="hud-time">Temps : <b id="timer">30</b></div>
+    <div class="hud-combo" id="combo">Combo x<span id="comboValue">1</span>!</div>
+  </div>
+
+  <div class="mus" id="musicPanel">
+    <div class="toggle" id="musicToggle" title="Musique">🎵</div>
+    <div class="slider"><input id="volume" type="range" min="0" max="1" step="0.01" value="0.35" /></div>
+  </div>
+
+  <div id="menu" class="menu active">
+    <div class="title">Tape-la-taupe !</div>
+    <button class="btn" id="playBtn">Solo</button>
+    <button class="btn anim" id="rulesBtn">Règles</button>
+    <button class="btn anim" id="scoresBtn">Scores</button>
+    <!-- Nouveau bouton Défi -->
+    <button class="btn anim" id="challengesBtn">Défi</button>
+    <div style="opacity:.45;margin-top:12px;font-family:'Press Start 2P';font-size:12px">Version 3.2</div>
+  </div>
+
+  <div id="rules" class="menu">
+    <div class="card panel" style="text-align:center">
+      <h2>Comment jouer</h2>
+
+      <div class="crea-bar">
+        <!-- Taupe -->
+        <div class="crea" title="Taupe +50">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <defs><radialGradient id="furBrown"><stop offset="0%" style="stop-color:#6b4d35"/><stop offset="100%" style="stop-color:#4a3420"/></radialGradient></defs>
+            <ellipse cx="32" cy="38" rx="20" ry="18" fill="url(#furBrown)"/>
+            <ellipse cx="32" cy="24" rx="14" ry="12" fill="#5a3e2d"/>
+            <ellipse cx="32" cy="28" rx="8" ry="6" fill="#8b6239"/>
+            <ellipse cx="32" cy="27" rx="3" ry="2" fill="#ff69b4"/>
+            <circle cx="26" cy="22" r="2" fill="#000"/><circle cx="38" cy="22" r="2" fill="#000"/>
+            <circle cx="26.5" cy="21.5" r="0.5" fill="#fff"/><circle cx="38.5" cy="21.5" r="0.5" fill="#fff"/>
+            <ellipse cx="22" cy="20" rx="4" ry="6" fill="#4a3420" transform="rotate(-20 22 20)"/>
+            <ellipse cx="42" cy="20" rx="4" ry="6" fill="#4a3420" transform="rotate(20 42 20)"/>
+            <path d="M20 45 L18 48 M25 46 L24 49 M39 46 L40 49 M44 45 L46 48" stroke="#2a2a2a" stroke-width="2" stroke-linecap="round"/>
+          </svg><b>+50</b>
+        </div>
+        <!-- Taupe d'or -->
+        <div class="crea" title="Taupe d'or +100">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <defs>
+              <radialGradient id="goldFur"><stop offset="0%" style="stop-color:#ffe066"/><stop offset="100%" style="stop-color:#f5c400"/></radialGradient>
+            </defs>
+            <ellipse cx="32" cy="38" rx="20" ry="18" fill="url(#goldFur)"/>
+            <ellipse cx="32" cy="24" rx="14" ry="12" fill="#ffd84d"/>
+            <ellipse cx="32" cy="28" rx="8" ry="6" fill="#fff176"/>
+            <ellipse cx="32" cy="27" rx="3" ry="2" fill="#f8c291"/>
+            <circle cx="26" cy="22" r="2" fill="#000"/>
+            <circle cx="38" cy="22" r="2" fill="#000"/>
+            <circle cx="26.5" cy="21.5" r="0.5" fill="#fff"/>
+            <circle cx="38.5" cy="21.5" r="0.5" fill="#fff"/>
+            <ellipse cx="22" cy="20" rx="4" ry="6" fill="#f5c400" transform="rotate(-20 22 20)"/>
+            <ellipse cx="42" cy="20" rx="4" ry="6" fill="#f5c400" transform="rotate(20 42 20)"/>
+            <path d="M20 45 L18 48 M25 46 L24 49 M39 46 L40 49 M44 45 L46 48" stroke="#2a2a2a" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <b style="color:#FFD700">+100</b>
+        </div>
+        <!-- Taupe bleue -->
+        <div class="crea" title="Taupe bleue +3s">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <defs>
+              <radialGradient id="blueFur"><stop offset="0%" style="stop-color:#66b3ff"/><stop offset="100%" style="stop-color:#1e90ff"/></radialGradient>
+            </defs>
+            <ellipse cx="32" cy="38" rx="20" ry="18" fill="url(#blueFur)"/>
+            <ellipse cx="32" cy="24" rx="14" ry="12" fill="#4682b4"/>
+            <ellipse cx="32" cy="28" rx="8" ry="6" fill="#87cefa"/>
+            <ellipse cx="32" cy="27" rx="3" ry="2" fill="#ff69b4"/>
+            <circle cx="26" cy="22" r="2" fill="#000"/><circle cx="38" cy="22" r="2" fill="#000"/>
+            <circle cx="26.5" cy="21.5" r="0.5" fill="#fff"/><circle cx="38.5" cy="21.5" r="0.5" fill="#fff"/>
+            <ellipse cx="22" cy="20" rx="4" ry="6" fill="#1e90ff" transform="rotate(-20 22 20)"/>
+            <ellipse cx="42" cy="20" rx="4" ry="6" fill="#1e90ff" transform="rotate(20 42 20)"/>
+            <path d="M20 45 L18 48 M25 46 L24 49 M39 46 L40 49 M44 45 L46 48" stroke="#2a2a2a" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <b style="color:#1e90ff">+3s</b>
+        </div>
+        <!-- Renard -->
+        <div class="crea" title="Renard -100 et -3s">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <defs><radialGradient id="foxFur"><stop offset="0%" style="stop-color:#ff8c42"/><stop offset="100%" style="stop-color:#ff6b35"/></radialGradient></defs>
+            <ellipse cx="48" cy="40" rx="12" ry="8" fill="url(#foxFur)" transform="rotate(30 48 40)"/>
+            <ellipse cx="50" cy="42" rx="8" ry="5" fill="#fff" opacity="0.8" transform="rotate(30 50 42)"/>
+            <ellipse cx="32" cy="38" rx="16" ry="14" fill="url(#foxFur)"/>
+            <ellipse cx="32" cy="40" rx="10" ry="8" fill="#fff9e6"/>
+            <ellipse cx="32" cy="24" rx="14" ry="11" fill="#ff6b35"/>
+            <path d="M32 28 L24 32 L32 34 L40 32 Z" fill="#ff8c42"/>
+            <circle cx="32" cy="32" r="1.5" fill="#000"/>
+            <path d="M24 22 L28 24 L24 26 Z" fill="#000"/><path d="M40 22 L36 24 L40 26 Z" fill="#000"/>
+            <circle cx="25" cy="24" r="0.5" fill="#fff"/><circle cx="39" cy="24" r="0.5" fill="#fff"/>
+            <path d="M20 18 L15 6 L26 15 Z" fill="#ff6b35"/>
+            <path d="M44 18 L49 6 L38 15 Z" fill="#ff6b35"/>
+            <ellipse cx="20" cy="28" rx="4" ry="3" fill="#fff" opacity="0.7"/>
+            <ellipse cx="44" cy="28" rx="4" ry="3" fill="#fff" opacity="0.7"/>
+          </svg>
+          <b style="color:var(--danger)">−100 & −3s</b>
+        </div>
+      </div>
+
+      <div style="margin:10px 0; font-size:14px; opacity:0.8">
+        Enchaînez les coups pour des combos multiplicateurs !<br>
+        Mode Frénésie à 10 secondes avec éruption volcanique !
+      </div>
+      <div class="footer-actions"><button class="btn small anim" id="backRules">Retour</button></div>
+    </div>
+  </div>
+
+  <div id="scores" class="menu">
+    <div class="card panel">
+      <div class="lists-grid">
+        <div>
+          <h2 class="section-title">Dernières Parties</h2>
+          <div id="scoresList" class="list">Aucune partie</div>
+        </div>
+        <div>
+          <h2 class="section-title">Meilleures Parties</h2>
+          <div id="bestList" class="list">Aucune partie</div>
+        </div>
+      </div>
+
+      <h2 class="section-title" style="margin-top:18px">Statistiques</h2>
+      <div id="scoresStats" class="stats-grid"></div>
+
+      <div class="footer-actions"><button class="btn small anim" id="backScores">Retour</button></div>
+    </div>
+  </div>
+
+  <!-- NOUVEL ÉCRAN : DÉFI -->
+  <div id="challenges" class="menu">
+    <div class="card panel">
+      <h2 class="section-title">Défi du jour</h2>
+      <div id="challengesList" class="list">Chargement…</div>
+
+      <h2 class="section-title" style="margin-top:18px">Progrès</h2>
+      <div id="challengesProgress" class="stats-grid"></div>
+
+      <div class="footer-actions">
+        <button class="btn small anim" id="backChallenges">Retour</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="over" class="menu">
+    <div class="card panel" style="text-align:center">
+      <h2>Partie terminée</h2>
+      <div id="finalScore" style="font-size:28px;color:var(--accent);font-weight:700">Score : 0</div>
+      <div id="resume" style="margin:12px 0 8px;font-size:16px"></div>
+      <div class="footer-actions">
+        <button class="btn anim" id="detailsBtn">Détails</button>
+        <button class="btn" id="again">Rejouer</button>
+        <button class="btn anim" id="backMenu">Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="detailsModal" class="modal">
+    <div class="box panel" style="position:relative">
+      <div class="close" id="closeDetails">✕</div>
+      <h3>Statistiques détaillées</h3>
+      <div id="detailsContent" style="margin-top:8px"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<script>
+/* ====== ÉTAT & UI ====== */
+const ui = {
+  list: document.getElementById('scoresList'),
+  best: document.getElementById('bestList'),
+  stats: document.getElementById('scoresStats'),
+  menu: document.getElementById('menu'),
+  rules: document.getElementById('rules'),
+  scores: document.getElementById('scores'),
+  challenges: document.getElementById('challenges'),
+  over: document.getElementById('over'),
+  hud: document.getElementById('hud'),
+  score: document.getElementById('score'),
+  timer: document.getElementById('timer'),
+  combo: document.getElementById('combo'),
+  comboValue: document.getElementById('comboValue'),
+  list: document.getElementById('scoresList'),
+  stats: document.getElementById('scoresStats'),
+  final: document.getElementById('finalScore'),
+  resume: document.getElementById('resume'),
+  vol: document.getElementById('volume'),
+  musicBtn: document.getElementById('musicToggle'),
+  musicPanel: document.getElementById('musicPanel'),
+  detailsBtn: document.getElementById('detailsBtn'),
+  modal: document.getElementById('detailsModal'),
+  details: document.getElementById('detailsContent'),
+  closeDetails: document.getElementById('closeDetails'),
+  gameContainer: document.getElementById('gameContainer'),
+  playBtn: document.getElementById('playBtn'),
+  challengesList: document.getElementById('challengesList'),
+  challengesProgress: document.getElementById('challengesProgress'),
+};
+const ORIGINAL_TITLE = document.title;
+
+/* ====== DÉFIS QUOTIDIENS ====== */
+const CHALLENGE_KEY = 'ultra3dDaily';
+const DAY_ID = new Date().toISOString().slice(0,10); // YYYY-MM-DD
+
+// RNG seedée (Mulberry32)
+function rng(seed){ return function(){ let t=seed+=0x6D2B79F5; t=Math.imul(t^t>>>15,t|1); t^=t+Math.imul(t^t>>>7,t|61); return ((t^t>>>14)>>>0)/4294967296; } }
+function hashDay(dayStr){ return Number(dayStr.replaceAll('-','')) || 0; }
+const rand = rng(hashDay(DAY_ID));
+
+/* Modèles de défis – Solo only */
+const ALL_TEMPLATES = [
+  { id:'score',      text:(n)=>`Atteins ${n} pts`,             target:()=> 1000 + Math.round(rand()*1500),            metric:'score',     better:'max' },
+  { id:'combo',      text:(n)=>`Fais un combo de ${n}+`,       target:()=> 10 + Math.floor(rand()*12),                metric:'combo',     better:'max' },
+  { id:'gold',       text:(n)=>`Tape ${n} taupes d’or`,        target:()=> 2 + Math.floor(rand()*4),                  metric:'gold',      better:'max' },
+  { id:'blue',       text:(n)=>`Profite de ${n} taupes bleues`,target:()=> 2 + Math.floor(rand()*4),                  metric:'blue',      better:'max' },
+  { id:'accuracy',   text:(n)=>`Précision ${n}% ou +`,          target:()=> 70 + Math.floor(rand()*20),                metric:'accuracy',  better:'max' },
+  { id:'nofox',      text:()=>`Aucun renard touché`,            target:()=> 1,                                         metric:'nofox',     better:'max' },
+  { id:'clickcap',   text:(n)=>`≤ ${n} clics et 1000+ pts`,     target:()=> 55 + Math.floor(rand()*25),                metric:'clickcap',  better:'min' },
+  ];
+
+function pickDaily(){
+  const picked = [];
+  const used = new Set();
+  while(picked.length < 3 && used.size < ALL_TEMPLATES.length){
+    const i = Math.floor(rand()*ALL_TEMPLATES.length);
+    if(used.has(i)) continue;
+    used.add(i);
+    const t = ALL_TEMPLATES[i];
+    const k = t.target();
+    picked.push({ id:t.id, text:t.text(k), metric:t.metric, better:t.better, target:k, progress:0, done:false, fail:false });
+  }
+  return picked;
+}
+
+function loadDaily(){
+  const raw = JSON.parse(localStorage.getItem(CHALLENGE_KEY) || '{}');
+  if(raw.day === DAY_ID && Array.isArray(raw.list)) return raw;
+  const list = pickDaily();
+  const data = { day: DAY_ID, list, attempts: 0 };
+  localStorage.setItem(CHALLENGE_KEY, JSON.stringify(data));
+  return data;
+}
+
+let daily = loadDaily();
+
+function updateDailyWithRun(){
+  const acc = statsRun.clicks ? Math.round(100 * statsRun.hits / statsRun.clicks) : 0;
+  const run = {
+    score,
+    combo: statsRun.maxCombo || 0,
+    gold: statsRun.hit.gold || 0,
+    blue: statsRun.hit.blue || 0,
+    accuracy: acc,
+    nofox: (statsRun.hit.fox||0) === 0 ? 1 : 0,
+    clickcap: statsRun.clicks || 0,
+  };
+
+  let changed = false;
+  daily.list = daily.list.map(ch => {
+    let value = 0, pct = 0, done = false, fail = false;
+
+    switch(ch.metric){
+      case 'score':
+        value = run.score; pct = Math.min(100, Math.round(100 * value / ch.target)); done = value >= ch.target; break;
+      case 'combo':
+        value = run.combo; pct = Math.min(100, Math.round(100 * value / ch.target)); done = value >= ch.target; break;
+      case 'gold':
+        value = run.gold;  pct = Math.min(100, Math.round(100 * value / ch.target)); done = value >= ch.target; break;
+      case 'blue':
+        value = run.blue;  pct = Math.min(100, Math.round(100 * value / ch.target)); done = value >= ch.target; break;
+      case 'accuracy':
+        value = run.accuracy; pct = Math.min(100, Math.round(100 * value / ch.target)); done = value >= ch.target; break;
+      case 'nofox':
+        value = run.nofox; pct = value ? 100 : 0; done = !!value; fail = !value; break;
+      case 'clickcap':
+        const okClicks = run.clickcap <= ch.target;
+        const okScore  = run.score >= 1000;
+        value = okClicks && okScore ? 1 : 0;
+        pct = value ? 100 : Math.min(99, Math.round(Math.max(
+          (okScore ? 100 : Math.min(100, run.score/1000*100)) * 0.5,
+          (okClicks ? 100 : Math.max(0, (ch.target / (run.clickcap||1))*100)) * 0.5
+        )));
+        done = !!value; fail = !value; break;
+         }
+
+    const newPct = Math.max(ch.progress||0, pct);
+    const newDone = ch.done || done;
+    const newFail = (ch.metric==='nofox' || ch.metric==='clickcap') ? (ch.fail || fail) : ch.fail;
+
+    if(newPct !== ch.progress || newDone !== ch.done || newFail !== ch.fail) changed = true;
+
+    return { ...ch, progress:newPct, done:newDone, fail:newFail };
+  });
+
+  daily.attempts += 1;
+  if(changed) localStorage.setItem(CHALLENGE_KEY, JSON.stringify(daily));
+}
+
+function renderChallenges(){
+  daily = loadDaily();
+  if(!daily.list || !daily.list.length){
+    ui.challengesList.textContent = 'Aucun défi pour aujourd’hui.';
+    ui.challengesProgress.innerHTML = '';
+    return;
+  }
+
+  ui.challengesList.innerHTML = daily.list.map((c,i)=>{
+    const badge = c.done ? `<span class="badge-done">Terminé</span>`
+               : c.fail && (c.metric==='nofox' || c.metric==='clickcap') ? `<span class="badge-failed">Échoué</span>`
+               : `<span class="badge-new">En cours</span>`;
+    return `
+      <div class="challenge-item">
+        <div class="challenge-title">
+          <span>${i+1}. ${c.text}</span>
+          ${badge}
+        </div>
+        <div class="progress-wrap" aria-label="Progression du défi"><div class="progress-bar" style="width:${c.progress||0}%"></div></div>
+        <div style="opacity:.8;font-size:12px;margin-top:6px">${c.progress||0}%</div>
+      </div>
+    `;
+  }).join('');
+
+  const done = daily.list.filter(c=>c.done).length;
+  ui.challengesProgress.innerHTML = `
+    <div class="stat">Jour : <b>${DAY_ID}</b></div>
+    <div class="stat">Tentatives : <b>${daily.attempts||0}</b></div>
+    <div class="stat">Défis complétés : <b>${done}/${daily.list.length}</b></div>
+    <div class="stat">Progression moyenne : <b>${
+      Math.round(daily.list.reduce((a,c)=>a+(c.progress||0),0)/daily.list.length)
+    }%</b></div>
+  `;
+}
+
+/* ====== VARIABLES DE JEU ====== */
+let scene, camera, renderer;
+let holes = [], moles = [], clouds = [], particles = [];
+let volcano = null, lavaParticles = [];
+let lavaFlows = [];
+let score = 0, timeLeft = 30, running = false;
+let combo = 0, comboTimer = 0, maxCombo = 0;
+let clock = new THREE.Clock();
+let spawnTimer = 0, rush = false;
+let sunset = false;
+let starsCanvas = null;
+let blueLeft = 3;
+let raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
+const statsRun = { hit:{normal:0,gold:0,fox:0,blue:0}, seen:{normal:0,gold:0,fox:0,blue:0}, clicks:0, hits:0, maxCombo:0 };
+const CAM = { start:new THREE.Vector3(0, 8, 14), play:new THREE.Vector3(0, 6, 10), menu:new THREE.Vector3(0, 10, 18), t:0, zooming:false };
+
+/* ====== AUDIO ====== */
+Tone.Destination.volume.value = -12;
+ui.vol.addEventListener('input', ()=>{ Tone.Destination.volume.value = 20*(+ui.vol.value-1); });
+function unlockAudio(){
+  Tone.start().then(()=>{
+    Tone.Transport.start();
+    if(homeSeq) homeSeq.mute=false;
+    if(gameSeq) gameSeq.mute=true;
+  });
+  window.removeEventListener('pointerdown', unlockAudio);
+}
+window.addEventListener('pointerdown', unlockAudio, {once:true});
+ui.musicBtn.addEventListener('click', ()=>{
+  const m = Tone.Destination.mute = !Tone.Destination.mute;
+  ui.musicBtn.classList.toggle('muted', m);
+});
+
+// slider son
+let musOpenTO = null;
+ui.musicBtn.addEventListener('mouseenter', ()=> openMusic());
+ui.musicPanel.addEventListener('mouseleave', ()=> closeMusicDelayed());
+ui.musicBtn.addEventListener('touchstart', (e)=>{ e.preventDefault(); toggleMusicOpen(); });
+function openMusic(){ clearTimeout(musOpenTO); ui.musicPanel.classList.add('open'); }
+function closeMusicDelayed(){ musOpenTO = setTimeout(()=> ui.musicPanel.classList.remove('open'), 120); }
+function toggleMusicOpen(){ ui.musicPanel.classList.toggle('open'); }
+
+// music
+const soft = new Tone.AMSynth({
+  harmonicity:1.4,
+  envelope:{attack:.02,decay:.6,sustain:.25,release:1.2},
+  modulationEnvelope:{attack:.1,decay:.4,sustain:.2,release:1.2}
+}).toDestination();
+
+const homeSeq = new Tone.Sequence((t,n)=>soft.triggerAttackRelease(n,"1n",t),
+  ["C3",["E3","G3"],"A2",["D3","F3"],null,["C3","E3","G3"],"B2",["D3","G3"]], "1m");
+const gameSeq = new Tone.Sequence((t,n)=>soft.triggerAttackRelease(n,"8n",t),
+  ["G4","E4","C4","E4","A4","G4","E4",null], "4n");
+homeSeq.loop = true; gameSeq.loop = true;
+
+// sfx
+const sMole = new Tone.Synth({ oscillator:{type:'triangle'}, envelope:{attack:0.003,decay:0.12,sustain:0,release:0.05} }).toDestination();
+const sFox  = new Tone.Synth({ oscillator:{type:'square'},   envelope:{attack:0.003,decay:0.25,sustain:0,release:0.12} }).toDestination();
+sFox.volume.value = -6;
+const bell  = new Tone.Synth({ oscillator:{type:'sine'}, envelope:{attack:0.001,decay:0.35,sustain:0,release:0.25} }).toDestination();
+bell.volume.value = -4;
+const metal = new Tone.MetalSynth({ frequency:250, envelope:{attack:0.001,decay:0.25,release:0.15}, harmonicity:5.1, modulationIndex:16, resonance:5000, octaves:1.2 }).toDestination();
+metal.volume.value = -12;
+
+function sparkle(){
+  const n=Tone.now();
+  bell.triggerAttackRelease("E6","16n",n+0);
+  bell.triggerAttackRelease("A6","16n",n+0.06);
+  bell.triggerAttackRelease("C7","16n",n+0.12);
+  metal.triggerAttackRelease(0.1,"8n",n+0.02);
+}
+
+/* ====== THREE ====== */
+function init3D(){
+  scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x0c1822, 20, 120);
+
+  camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 1000);
+  camera.position.copy(CAM.start);
+  camera.lookAt(0,0,0);
+
+  renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setPixelRatio(Math.min(1.5, devicePixelRatio));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.getElementById('three-canvas').appendChild(renderer.domElement);
+
+  // lumières
+  scene.add(new THREE.AmbientLight(0xffffff, .55));
+  const sun = new THREE.DirectionalLight(0xfff6e0, .95);
+  sun.position.set(12,22,8);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(1024,1024);
+  sun.shadow.camera.near=0.5;
+  sun.shadow.camera.far=80;
+  sun.shadow.camera.left=-18;
+  sun.shadow.camera.right=18;
+  sun.shadow.camera.top=18;
+  sun.shadow.camera.bottom=-18;
+  scene.add(sun);
+
+  createFloatingIsland();
+  createEnclosure();
+  createHoles();
+  placeDecorRealistic();
+  createClouds();
+  createVolcano();
+  
+  window.addEventListener('resize', onResize);
+  setupEventListeners();
+}
+
+/* ====== PLATEAU FLOTTANT (relief bas renforcé) ====== */
+function createFloatingIsland(){
+  const radius = 12;
+
+  // prairie
+  const topGeo = new THREE.CircleGeometry(radius, 64);
+  const pos = topGeo.attributes.position;
+  for(let i=0;i<pos.count;i++){
+    const x = pos.getX(i), y = pos.getY(i);
+    const r = Math.sqrt(x*x+y*y)/radius;
+    const bump = (Math.sin(x*0.5)*Math.cos(y*0.4))*0.35*(1-r*r);
+    pos.setZ(i, bump + (Math.random()*0.08));
+  }
+  topGeo.computeVertexNormals();
+  const grassMat = new THREE.MeshPhongMaterial({ color:0x3c9d46, shininess: 12, specular: 0x335533 });
+  const top = new THREE.Mesh(topGeo, grassMat);
+  top.rotation.x = -Math.PI/2;
+  top.position.y = 0.15;
+  top.receiveShadow = true;
+  scene.add(top);
+
+  // falaise
+  const sideGeo = new THREE.CylinderGeometry(radius, radius*0.45, 4.8, 48, 6, true);
+  const sPos = sideGeo.attributes.position;
+  for(let i=0;i<sPos.count;i++){
+    const vx = sPos.getX(i), vy = sPos.getY(i), vz = sPos.getZ(i);
+    const depth = (2.4 - vy) / 4.8;
+    const n = (Math.sin(vx*0.6)+Math.cos(vz*0.5))*0.15*depth + (Math.random()-0.5)*0.06*depth;
+    sPos.setX(i, vx + (Math.random()-0.5)*0.06);
+    sPos.setZ(i, vz + (Math.random()-0.5)*0.06);
+    sPos.setY(i, vy + n);
+  }
+  sideGeo.computeVertexNormals();
+  const rockMat = new THREE.MeshPhongMaterial({ color:0x6b584a, shininess: 6, specular: 0x222222 });
+  const side = new THREE.Mesh(sideGeo, rockMat);
+  side.position.y = -2.35;
+  side.castShadow = true;
+  side.receiveShadow = true;
+  scene.add(side);
+
+  // pointe
+  const underGeo = new THREE.ConeGeometry(radius*0.6, 8.5, 20, 6, true);
+  const uPos = underGeo.attributes.position;
+  for(let i=0;i<uPos.count;i++){
+    const vx=uPos.getX(i), vy=uPos.getY(i), vz=uPos.getZ(i);
+    const jitter = (Math.sin(vx*0.7)+Math.cos(vz*0.8))*0.18 + (Math.random()-0.5)*0.15;
+    uPos.setX(i, vx + (Math.random()-0.5)*0.18);
+    uPos.setZ(i, vz + (Math.random()-0.5)*0.18);
+    uPos.setY(i, vy + jitter);
+  }
+  underGeo.computeVertexNormals();
+  const under = new THREE.Mesh(underGeo, rockMat.clone());
+  under.position.y = -6.8;
+  under.castShadow = true;
+  scene.add(under);
+
+  // stalactites
+  const spikes = new THREE.Group();
+  for(let i=0;i<10;i++){
+    const a = Math.random()*Math.PI*2;
+    const r = 3 + Math.random()*6;
+    const h = 0.8 + Math.random()*1.6;
+    const spikeGeo = new THREE.ConeGeometry(0.25+Math.random()*0.2, h, 6);
+    const spike = new THREE.Mesh(spikeGeo, rockMat);
+    spike.position.set(Math.cos(a)*r, -5.8 - Math.random()*1.2, Math.sin(a)*r);
+    spike.rotation.x = (Math.random()*0.3-0.15);
+    spike.rotation.z = (Math.random()*0.3-0.15);
+    spike.castShadow = true;
+    spikes.add(spike);
+  }
+  scene.add(spikes);
+}
+
+/* ====== ENCLOS CENTRAL ====== */
+function createEnclosure(){
+  const group = new THREE.Group();
+  const inner = 8.2;
+  const postGeo = new THREE.CylinderGeometry(0.08,0.1,0.9,6);
+  const woodMat = new THREE.MeshLambertMaterial({ color: 0x8b5a2b });
+
+  const corners = [
+    [-inner/2,-inner/2], [inner/2,-inner/2],
+    [inner/2, inner/2], [-inner/2, inner/2]
+  ];
+  corners.forEach(([x,z])=>{
+    const p = new THREE.Mesh(postGeo, woodMat);
+    p.position.set(x, 0.45, z);
+    p.castShadow = true; group.add(p);
+  });
+
+  const railLen = inner;
+  const railGeo = new THREE.BoxGeometry(railLen, 0.08, 0.1);
+  const rTopN = new THREE.Mesh(railGeo, woodMat); rTopN.position.set(0,0.7,-inner/2); group.add(rTopN);
+  const rTopS = rTopN.clone(); rTopS.position.z = inner/2; group.add(rTopS);
+  const rMidN = new THREE.Mesh(railGeo, woodMat); rMidN.position.set(0,0.45,-inner/2); group.add(rMidN);
+  const rMidS = rMidN.clone(); rMidS.position.z = inner/2; group.add(rMidS);
+
+  const railGeoSide = new THREE.BoxGeometry(railLen, 0.08, 0.1);
+  const sTopW = new THREE.Mesh(railGeoSide, woodMat); sTopW.rotation.y = Math.PI/2; sTopW.position.set(-inner/2,0.7,0); group.add(sTopW);
+  const sTopE = sTopW.clone(); sTopE.position.x = inner/2; group.add(sTopE);
+  const sMidW = sTopW.clone(); sMidW.position.y = 0.45; group.add(sMidW);
+  const sMidE = sTopE.clone(); sMidE.position.y = 0.45; group.add(sMidE);
+
+  group.position.y = 0.05;
+  scene.add(group);
+}
+
+/* ====== DÉCORS ====== */
+function placeDecorRealistic(){
+  const grassGeo = new THREE.ConeGeometry(0.08, 0.35, 6);
+  const grassMat = new THREE.MeshLambertMaterial({color: 0x2d8a36});
+  for(let i = 0; i < 90; i++){
+    const a = Math.random() * Math.PI * 2, d = 3.5 + Math.random() * 7.5;
+    const g = new THREE.Mesh(grassGeo, grassMat);
+    g.position.set(Math.cos(a)*d, 0.05, Math.sin(a)*d);
+    g.rotation.x = -Math.PI/2 + (Math.random()*0.2-0.1);
+    g.scale.setScalar(0.8 + Math.random()*0.8);
+    scene.add(g);
+  }
+  const trunkGeo = new THREE.CylinderGeometry(0.12,0.16,1.2,6);
+  const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b3e1c });
+  const foliageGeo = new THREE.IcosahedronGeometry(0.7,0);
+  const foliageMat = new THREE.MeshLambertMaterial({ color: 0x2ea043 });
+  for(let i=0;i<7;i++){
+    const a = Math.random()*Math.PI*2, d = 7.5 + Math.random()*3.2;
+    const t = new THREE.Mesh(trunkGeo, trunkMat);
+    t.position.set(Math.cos(a)*d, 0.6, Math.sin(a)*d);
+    t.castShadow = true; scene.add(t);
+    const f = new THREE.Mesh(foliageGeo, foliageMat);
+    f.position.copy(t.position); f.position.y += 0.9;
+    f.scale.setScalar(0.9 + Math.random()*0.6);
+    f.castShadow = true; f.receiveShadow = true;
+    scene.add(f);
+  }
+  const rockGeo = new THREE.DodecahedronGeometry(0.6, 0);
+  const rockMat = new THREE.MeshLambertMaterial({ color: 0x7b7b7b });
+  for(let i=0;i<14;i++){
+    const a = Math.random()*Math.PI*2, d = 6 + Math.random()*5;
+    const r = new THREE.Mesh(rockGeo, rockMat);
+    r.position.set(Math.cos(a)*d, 0.02+Math.random()*0.1, Math.sin(a)*d);
+    r.scale.setScalar(0.6 + Math.random()*0.8);
+    r.castShadow = true; r.receiveShadow = true;
+    scene.add(r);
+  }
+}
+
+/* ====== VOLCAN & LAVE ====== */
+let smokeInterval = null;
+function createVolcano(){
+  const volGroup = new THREE.Group();
+
+  const volGeo = new THREE.ConeGeometry(2.8, 4.6, 24, 8, true);
+  const vPos = volGeo.attributes.position;
+  for(let i=0;i<vPos.count;i++){
+    const x=vPos.getX(i), y=vPos.getY(i), z=vPos.getZ(i);
+    const n = (Math.sin(x*0.9)+Math.cos(z*0.7))*0.15;
+    vPos.setX(i, x + (Math.random()-0.5)*0.06);
+    vPos.setZ(i, z + (Math.random()-0.5)*0.06);
+    vPos.setY(i, y + n);
+  }
+  volGeo.computeVertexNormals();
+  const volMat = new THREE.MeshPhongMaterial({ color: 0x4b3b31, shininess: 8, specular: 0x222222, side: THREE.DoubleSide });
+  const volMesh = new THREE.Mesh(volGeo, volMat);
+  volMesh.position.y = 2.2;
+  volMesh.castShadow = true;
+  volGroup.add(volMesh);
+
+  const craterGeo = new THREE.CylinderGeometry(0.85, 0.95, 0.5, 24);
+  const craterMat = new THREE.MeshLambertMaterial({ color: 0x2a1a13 });
+  const crater = new THREE.Mesh(craterGeo, craterMat);
+  crater.position.y = 4.3;
+  volGroup.add(crater);
+
+  const lavaGeo = new THREE.CylinderGeometry(0.75, 0.75, 0.35, 24);
+  const lavaMat = new THREE.MeshBasicMaterial({ color: 0xff4a16, opacity: 0, transparent: true });
+  const lava = new THREE.Mesh(lavaGeo, lavaMat);
+  lava.position.y = 4.22;
+  volGroup.add(lava);
+  volGroup.userData.lava = lava;
+  volGroup.userData.mesh = volMesh;
+
+  volGroup.position.set(7, -1.5, -7);
+  scene.add(volGroup);
+  volcano = volGroup;
+
+  createSmoke();
+}
+
+function createSmoke(){
+  if(!volcano) return;
+  const smokeGeo = new THREE.SphereGeometry(0.3, 6, 4);
+  const baseMat = new THREE.MeshBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.3 });
+  smokeInterval = setInterval(() => {
+    if (!rush) {
+      const smoke = new THREE.Mesh(smokeGeo, baseMat.clone());
+      smoke.position.copy(volcano.position);
+      smoke.position.y += 3.8;
+      smoke.position.x += (Math.random() - 0.5) * 0.5;
+      smoke.position.z += (Math.random() - 0.5) * 0.5;
+      scene.add(smoke);
+      const rise = setInterval(() => {
+        smoke.position.y += 0.05;
+        smoke.scale.multiplyScalar(1.02);
+        smoke.material.opacity -= 0.005;
+        if(smoke.material.opacity <= 0 || rush) {
+          clearInterval(rise);
+          scene.remove(smoke);
+          smoke.geometry.dispose();
+          smoke.material.dispose();
+        }
+      }, 50);
+    }
+  }, 500);
+}
+
+function startEruption(){
+  if(!volcano) return;
+  document.body.classList.add('eruption');
+  const lava = volcano.userData.lava; if(lava) lava.material.opacity = 1;
+  createLavaParticles();
+  startLavaFlows();
+  const rumble = new Tone.Noise("brown").toDestination();
+  rumble.volume.value = -20; rumble.start(); setTimeout(() => rumble.stop(), 3000);
+}
+function stopEruption(){
+  document.body.classList.remove('eruption');
+  if(volcano && volcano.userData.lava) volcano.userData.lava.material.opacity = 0;
+  lavaFlows.forEach(f => { scene.remove(f.mesh); f.mesh.geometry.dispose(); f.mesh.material.dispose(); });
+  lavaFlows = [];
+}
+function createLavaParticles(){
+  if(!volcano) return;
+  const lavaCount = 20;
+  for(let i = 0; i < lavaCount; i++){
+    setTimeout(() => {
+      const lavaGeo = new THREE.SphereGeometry(0.15 + Math.random() * 0.15, 6, 4);
+      const lavaMat = new THREE.MeshBasicMaterial({ color: 0xff4500 });
+      const lavaBall = new THREE.Mesh(lavaGeo, lavaMat);
+      lavaBall.position.copy(volcano.position); lavaBall.position.y += 4.5;
+      const vx = (Math.random() - 0.5) * 0.35, vy = 0.55 + Math.random() * 0.3, vz = (Math.random() - 0.5) * 0.35;
+      scene.add(lavaBall); lavaParticles.push({ mesh: lavaBall, vx, vy, vz, life: 2 });
+    }, i * 100);
+  }
+}
+function startLavaFlows(){
+  for(let i=0;i<18;i++){
+    const dropGeo = new THREE.SphereGeometry(0.07 + Math.random()*0.06, 6, 4);
+    const dropMat = new THREE.MeshBasicMaterial({ color: 0xff5a1a });
+    const drop = new THREE.Mesh(dropGeo, dropMat);
+    drop.position.copy(volcano.position);
+    drop.position.y = 4.1 + Math.random()*0.4;
+    const angle = Math.random()*Math.PI*2;
+    drop.position.x += Math.cos(angle)*0.6;
+    drop.position.z += Math.sin(angle)*0.6;
+    scene.add(drop);
+    lavaFlows.push({ mesh: drop, vx: (Math.random()-0.5)*0.015, vy: -0.015 - Math.random()*0.02, vz: (Math.random()-0.5)*0.015, life: 6 });
+  }
+}
+function updateLavaParticles(dt){
+  for(let i = lavaParticles.length - 1; i >= 0; i--){
+    const p = lavaParticles[i];
+    p.mesh.position.x += p.vx; p.mesh.position.y += p.vy; p.mesh.position.z += p.vz;
+    p.vy -= 0.02; p.life -= dt;
+    if(p.life <= 0 || p.mesh.position.y < -2){
+      scene.remove(p.mesh); p.mesh.geometry.dispose(); p.mesh.material.dispose(); lavaParticles.splice(i, 1);
+    }
+  }
+}
+function updateLavaFlows(dt){
+  for(let i = lavaFlows.length - 1; i >= 0; i--){
+    const f = lavaFlows[i];
+    f.mesh.position.x += f.vx;
+    f.mesh.position.y += f.vy;
+    f.mesh.position.z += f.vz;
+    f.vy -= 0.002;
+    f.life -= dt;
+    if(f.life <= 0 || f.mesh.position.y <= -1.5){
+      scene.remove(f.mesh); f.mesh.geometry.dispose(); f.mesh.material.dispose(); lavaFlows.splice(i,1);
+    }
+  }
+}
+
+/* ====== TROUS ====== */
+function createHoles(){
+  const cylGeo = new THREE.CylinderGeometry(1.25, 1.0, 0.6, 16);
+  const cylMat = new THREE.MeshLambertMaterial({color: 0x5b3b22});
+  const torGeo = new THREE.TorusGeometry(1.25, 0.25, 8, 20);
+  const torMat = new THREE.MeshLambertMaterial({color: 0x7a5230});
+
+  const innerWallGeo = new THREE.CylinderGeometry(1.0, 0.85, 0.58, 16, 1, true);
+  const innerWallMat = new THREE.MeshLambertMaterial({ color: 0x3f2919, side: THREE.DoubleSide });
+  const bottomGeo = new THREE.CircleGeometry(0.85, 16);
+  const bottomMat = new THREE.MeshLambertMaterial({ color: 0x2e1d12 });
+
+  const pos = [
+    [-3, 0, -3], [0, 0, -3], [3, 0, -3],
+    [-3, 0, 0],  [0, 0, 0],   [3, 0, 0],
+    [-3, 0, 3],  [0, 0, 3],   [3, 0, 3]
+  ];
+  pos.forEach((p, i) => {
+    const hole = new THREE.Mesh(cylGeo, cylMat);
+    hole.position.set(p[0], -0.3, p[2]); hole.receiveShadow = true; scene.add(hole);
+
+    const ring = new THREE.Mesh(torGeo, torMat);
+    ring.position.set(p[0], 0.1, p[2]); ring.rotation.x = -Math.PI/2; ring.castShadow = true; scene.add(ring);
+
+    const dirtGeo = new THREE.RingGeometry(1.25, 1.65, 16);
+    const dirtMat = new THREE.MeshLambertMaterial({ color: 0x6b4a35, side: THREE.DoubleSide });
+    const dirt = new THREE.Mesh(dirtGeo, dirtMat);
+    dirt.position.set(p[0], 0.05, p[2]); dirt.rotation.x = -Math.PI/2; scene.add(dirt);
+
+    const innerWall = new THREE.Mesh(innerWallGeo, innerWallMat);
+    innerWall.position.set(p[0], -0.3, p[2]);
+    scene.add(innerWall);
+
+    const bottom = new THREE.Mesh(bottomGeo, bottomMat);
+    bottom.position.set(p[0], -0.6+0.01, p[2]);
+    bottom.rotation.x = -Math.PI/2;
+    scene.add(bottom);
+
+    holes.push({ position: new THREE.Vector3(p[0], 0, p[2]), occupied: false, index: i });
+  });
+}
+
+/* ====== NUAGES ====== */
+function createClouds(){
+  const sph=new THREE.SphereGeometry(1,8,6), mat=new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,opacity:.8});
+  for(let i=0;i<5;i++){
+    const cl=new THREE.Group();
+    for(let j=0;j<4;j++){
+      const p=new THREE.Mesh(sph,mat.clone());
+      p.scale.setScalar(1+Math.random()); p.position.x=j*1.5-2; p.position.y=Math.random()*0.5; cl.add(p);
+    }
+    cl.position.set(Math.random()*40-20, 15+Math.random()*5, Math.random()*40-20);
+    cl.userData.speed=0.01+Math.random()*0.02;
+    clouds.push(cl); scene.add(cl);
+  }
+}
+
+/* ====== CRÉATURES ====== */
+const geoBody = new THREE.SphereGeometry(0.9, 18, 14);
+const geoHead = new THREE.SphereGeometry(0.7, 16, 12);
+const eyeGeo = new THREE.SphereGeometry(0.12, 8, 6);
+const earGeo = new THREE.SphereGeometry(0.25, 8, 6);
+const noseGeo = new THREE.SphereGeometry(0.15, 8, 6);
+
+const mBrown = new THREE.MeshPhongMaterial({ color: 0x4a3420, shininess: 8, specular: 0x111111 });
+const mBrownLight = new THREE.MeshPhongMaterial({ color: 0x6b4d35, shininess: 8, specular: 0x111111 });
+const mGold = new THREE.MeshPhongMaterial({ color: 0xFFD700, shininess: 50, specular: 0xffcc66, emissive: 0xAA6600, emissiveIntensity: 0.2 });
+const mOrange = new THREE.MeshPhongMaterial({ color: 0xFF6B35, shininess: 12, specular: 0x552211 });
+const mBlack = new THREE.MeshPhongMaterial({ color: 0x111111, shininess: 30, specular: 0x444444 });
+const mWhite = new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 20, specular: 0x777777 });
+const mPink = new THREE.MeshPhongMaterial({ color: 0xFF69B4, shininess: 25, specular: 0xaa6688 });
+const mBlueDark = new THREE.MeshPhongMaterial({ color: 0x1e90ff, shininess: 14, specular: 0x335577 });
+const mBlueLight = new THREE.MeshPhongMaterial({ color: 0x66b3ff, shininess: 14, specular: 0x335577 });
+
+function addWhiskers(group){
+  const wGeo = new THREE.CylinderGeometry(0.01,0.01,0.5,6);
+  const wMat = new THREE.MeshBasicMaterial({ color: 0xeeeeee });
+  for(let s=-1; s<=1; s+=2){
+    for(let i=0;i<3;i++){
+      const w = new THREE.Mesh(wGeo, wMat);
+      w.position.set(0.18*s, 0.4 - i*0.06, 0.7);
+      w.rotation.z = s>0 ? -0.35 : 0.35;
+      w.rotation.x = Math.PI/2;
+      group.add(w);
+    }
+  }
+}
+
+function creature(type = 'normal') {
+  const g = new THREE.Group();
+  g.userData.originalY = 0;
+  g.userData.creatureType = type;
+
+  const bodyMat = type === 'gold' ? mGold : type === 'fox' ? mOrange : type === 'blue' ? mBlueDark : mBrown;
+  const headMat = type === 'gold' ? mGold : type === 'fox' ? mOrange : type === 'blue' ? mBlueLight : mBrownLight;
+
+  const body = new THREE.Mesh(geoBody, bodyMat);
+  body.position.y = -0.3; body.scale.set(1.15, 0.95, 1.15); body.castShadow = true; g.add(body);
+
+  const head = new THREE.Mesh(geoHead, headMat);
+  head.position.y = 0.45; head.castShadow = true; g.add(head);
+
+  const eye1 = new THREE.Mesh(eyeGeo, mBlack); eye1.position.set(-0.22, 0.52, 0.58); g.add(eye1);
+  const eye2 = new THREE.Mesh(eyeGeo, mBlack); eye2.position.set( 0.22, 0.52, 0.58); g.add(eye2);
+  const pupil1 = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), mWhite); pupil1.position.set(-0.24, 0.54, 0.66); g.add(pupil1);
+  const pupil2 = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), mWhite); pupil2.position.set( 0.20, 0.54, 0.66); g.add(pupil2);
+
+  if (type === 'normal' || type === 'blue') {
+    const nose = new THREE.Mesh(noseGeo, mPink); nose.position.set(0, 0.36, 0.7); nose.scale.set(1.15, 0.9, 0.9); g.add(nose);
+    const ear1 = new THREE.Mesh(earGeo, type === 'blue' ? mBlueDark : mBrown); ear1.position.set(-0.36, 0.68, 0.02); ear1.scale.set(1, 0.7, 0.6); g.add(ear1);
+    const ear2 = new THREE.Mesh(earGeo, type === 'blue' ? mBlueDark : mBrown); ear2.position.set( 0.36, 0.68, 0.02); ear2.scale.set(1, 0.7, 0.6); g.add(ear2);
+    const clawGeo = new THREE.ConeGeometry(0.08, 0.3, 5);
+    const clawMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2a });
+    for(let i = -1; i <= 1; i++){ const claw = new THREE.Mesh(clawGeo, clawMat); claw.position.set(i*0.18, -0.5, 0.82); claw.rotation.x = -0.3; g.add(claw); }
+    addWhiskers(g);
+  }
+
+  if (type === 'gold') {
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.36, 0.22, 8), mGold); crown.position.y = 0.95; g.add(crown);
+    const gemGeo = new THREE.OctahedronGeometry(0.08, 0); const gemMat = new THREE.MeshBasicMaterial({ color: 0xFF1493 });
+    for(let i = 0; i < 3; i++){ const a = (i/3)*Math.PI*2; const gem = new THREE.Mesh(gemGeo, gemMat); gem.position.set(Math.cos(a)*0.32, 1.0, Math.sin(a)*0.32); g.add(gem); }
+    const nose = new THREE.Mesh(noseGeo, mGold); nose.position.set(0, 0.36, 0.7); g.add(nose);
+    addWhiskers(g);
+  }
+
+  if (type === 'fox') {
+    const snout = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.52, 6), mOrange); snout.position.set(0, 0.32, 0.76); snout.rotation.x = 1.57; g.add(snout);
+    const foxNose = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), mBlack); foxNose.position.set(0, 0.32, 0.98); g.add(foxNose);
+    const earTriGeo = new THREE.ConeGeometry(0.3, 0.62, 3);
+    const earL = new THREE.Mesh(earTriGeo, mOrange); earL.position.set(-0.33, 0.95, -0.02); earL.rotation.z = 0.22; g.add(earL);
+    const earR = new THREE.Mesh(earTriGeo, mOrange); earR.position.set( 0.33, 0.95, -0.02); earR.rotation.z = -0.22; g.add(earR);
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.85, 6), mOrange); tail.position.set(0, -0.42, -0.52); tail.rotation.x = -2.5; tail.scale.set(0.7, 1, 0.5); g.add(tail);
+  }
+
+  g.castShadow = true; g.receiveShadow = true;
+  return g;
+}
+
+/* ====== PARTICULES ====== */
+function createImpactParticles(position, color){
+  const particleCount = 8, geometry = new THREE.BufferGeometry(), positions = new Float32Array(particleCount*3), velocities = [];
+  for(let i = 0; i < particleCount; i++){
+    positions[i*3] = position.x; positions[i*3+1] = position.y + 1; positions[i*3+2] = position.z;
+    velocities.push(new THREE.Vector3((Math.random()-0.5)*0.3, Math.random()*0.3+0.1, (Math.random()-0.5)*0.3));
+  }
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const material = new THREE.PointsMaterial({ color, size: 0.3, transparent: true, opacity: 1 });
+  const particleSystem = new THREE.Points(geometry, material); particleSystem.userData = { velocities, life: 0.6 };
+  scene.add(particleSystem); particles.push(particleSystem);
+}
+
+/* ====== CLIC ====== */
+function setupEventListeners(){
+  // pointerdown = plus réactif que click
+  ui.gameContainer.addEventListener('pointerdown', onPointerDown, {passive:false});
+  ui.gameContainer.addEventListener('touchstart', onTouchStart, {passive:false});
+
+  document.querySelectorAll('.btn.anim').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      const r = document.createElement('span');
+      r.className = 'ripple';
+      const rect = btn.getBoundingClientRect();
+      r.style.left = (e.clientX - rect.left) + 'px';
+      r.style.top  = (e.clientY - rect.top) + 'px';
+      btn.appendChild(r);
+      setTimeout(()=> r.remove(), 600);
+    });
+  });
+
+  // Raccourcis utiles
+  window.addEventListener('keydown', (e)=>{
+    if(e.key.toLowerCase()==='r') start();
+    if(e.key.toLowerCase()==='m'){ const m = Tone.Destination.mute = !Tone.Destination.mute; ui.musicBtn.classList.toggle('muted', m); }
+    if(e.key==='Escape'){ quitToMenu(); }
+  });
+
+  // Pause sur blur
+  document.addEventListener('visibilitychange', ()=>{ if(document.hidden && running) quitToMenu(); });
+}
+
+function onPointerDown(event){
+  if(!running) return;
+  const rect = ui.gameContainer.getBoundingClientRect();
+  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  processHit();
+}
+function onTouchStart(event){
+  if(!running) return; event.preventDefault();
+  const t = event.touches[0], rect = ui.gameContainer.getBoundingClientRect();
+  pointer.x = ((t.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((t.clientY - rect.top) / rect.height) * 2 + 1;
+  processHit();
+}
+function processHit() {
+  statsRun.clicks++; raycaster.setFromCamera(pointer, camera);
+  const intersects = raycaster.intersectObjects(moles, true);
+  if (intersects.length > 0) {
+    let hitObject = intersects[0].object;
+    while (hitObject.parent && !hitObject.userData.isMole) hitObject = hitObject.parent;
+    if (hitObject.userData.isMole && hitObject.userData.isUp && !hitObject.userData.down && !hitObject.userData.hit) hitMole(hitObject);
+  }
+}
+
+/* ====== GAME LOGIC ====== */
+function spawn(){
+  if(!running) return;
+  const free=holes.filter(h=>!h.occupied); if(!free.length) return;
+  const slot=free[(Math.random()*free.length)|0]; slot.occupied=true;
+
+  let type='normal';
+  const r=Math.random();
+  if(blueLeft > 0 && Math.random() < 0.12){ type='blue'; blueLeft--; }
+  else if(r<0.15) type='gold';
+  else if(r<0.35) type='fox';
+  else type='normal';
+
+  statsRun.seen[type] = (statsRun.seen[type]||0)+1;
+
+  const m=creature(type); m.position.copy(slot.position); m.position.y=-2;
+  m.userData={ 
+    type, 
+    points: type==='gold'?100:type==='fox'?-100:50, 
+    isUp:false, 
+    down:false, 
+    holeIndex:slot.index, 
+    age:0, 
+    hit:false, 
+    targetY: 0.5 + Math.random()*0.3, 
+    isMole:true 
+  };
+  scene.add(m); moles.push(m);
+}
+
+function tickCreatures(dt){
+  for(let i=moles.length-1;i>=0;i--){
+    const m=moles[i];
+    if(!m.userData.isUp){
+      m.position.y += 0.18;
+      if(m.position.y >= m.userData.targetY){ m.userData.isUp=true; m.userData.originalY = m.position.y; }
+    } else if(m.userData.down){
+      m.position.y -= 0.25;
+      if(m.position.y <= -2){
+        const h=holes[m.userData.holeIndex]; if(h) h.occupied=false;
+        scene.remove(m); moles.splice(i,1);
+      }
+    } else {
+      m.userData.age += dt;
+      if(m.userData.isUp && !m.userData.down) m.position.y = m.userData.originalY + Math.sin(Date.now()*0.003)*0.05;
+      const stay = (timeLeft <= 10 ? 0.5 : 0.8) + Math.random()*0.4;
+      if(m.userData.age >= stay) m.userData.down = true;
+    }
+    if(m.userData.type === 'gold') m.rotation.y += 0.05;
+  }
+}
+
+function showTimeBonus(txt){
+  const r = ui.timer.getBoundingClientRect();
+  const d = document.createElement('div');
+  d.className = 'time-pop';
+  d.style.left = (r.left + r.width/2) + 'px';
+  d.style.top  = (r.top + r.height/2) + 'px';
+  d.style.color = '#27ae60';
+  d.textContent = txt;
+  document.body.appendChild(d);
+  ui.hud.querySelector('.hud-time').classList.add('flash');
+  setTimeout(()=>{ d.remove(); ui.hud.querySelector('.hud-time').classList.remove('flash'); }, 900);
+}
+function showTimePenalty(txt){
+  const r = ui.timer.getBoundingClientRect();
+  const d = document.createElement('div');
+  d.className = 'time-pop';
+  d.style.left = (r.left + r.width/2) + 'px';
+  d.style.top  = (r.top + r.height/2) + 'px';
+  d.style.color = '#e74c3c';
+  d.textContent = txt;
+  document.body.appendChild(d);
+  ui.hud.querySelector('.hud-time').classList.add('flash');
+  setTimeout(()=>{ d.remove(); ui.hud.querySelector('.hud-time').classList.remove('flash'); }, 900);
+}
+
+function hitMole(mole){
+  if(mole.userData.hit) return;
+  mole.userData.hit = true; mole.userData.down = true;
+
+  const type = mole.userData.type; statsRun.hits++; comboTimer = 2;
+  let points = 0, message = '', color = '';
+
+  if(type === 'fox'){
+    combo = 0;
+    points = -100; 
+    score = Math.max(0, score + points);
+    timeLeft = Math.max(0, timeLeft - 3);
+    statsRun.hit.fox++;
+    message = '−100';
+    color = '#e74c3c';
+    showTimePenalty('-3s');
+    sFox.triggerAttackRelease("C2", "4n");
+    ui.combo.classList.remove('active');
+  } else if(type === 'gold'){
+    combo++; 
+    points = 100; 
+    let bonusPoints = points;
+    if(combo > 3) bonusPoints = 120;
+    if(combo > 6) bonusPoints = 150;
+    score += bonusPoints;
+    statsRun.hit.gold++; 
+    message = '+' + bonusPoints; 
+    color = '#FFD700'; 
+    sparkle(); 
+    shakeCamera(0.1);
+  } else if(type === 'blue'){
+    combo++;
+    timeLeft += 3;
+    statsRun.hit.blue++;
+    message = '+3s';
+    color = '#1e90ff';
+    sMole.triggerAttackRelease("G5", "32n");
+    showTimeBonus('+3s');
+  } else {
+    combo++; 
+    points = 50; 
+    let bonusPoints = points;
+    if(combo > 5) bonusPoints = 60;
+    if(combo > 10) bonusPoints = 75;
+    score += bonusPoints;
+    statsRun.hit.normal++; 
+    message = '+' + bonusPoints; 
+    color = '#27ae60'; 
+    sMole.triggerAttackRelease("E5", "32n");
+  }
+
+  showPoints(mole.position, message, color);
+  createImpactParticles(mole.position, color.replace('#', '0x'));
+
+  ui.score.textContent = score;
+  ui.timer.innerHTML = timeLeft <= 10 ? `<b class="low">${timeLeft}</b>` : `<b>${timeLeft}</b>`;
+  if(combo > 1){ ui.combo.classList.add('active'); ui.comboValue.textContent = combo; }
+  if(combo > maxCombo) maxCombo = combo; if(combo > statsRun.maxCombo) statsRun.maxCombo = combo;
+}
+
+function showPoints(position, text, color){
+  const pos2D = position.clone(); pos2D.y += 2; pos2D.project(camera);
+  const x = (pos2D.x * 0.5 + 0.5) * window.innerWidth;
+  const y = (-pos2D.y * 0.5 + 0.5) * window.innerHeight;
+  const div = document.createElement('div');
+  div.className = 'pop'; div.style.left = x + 'px'; div.style.top = y + 'px'; div.style.color = color; div.textContent = text;
+  document.body.appendChild(div); setTimeout(() => div.remove(), 1100);
+}
+
+function shakeCamera(intensity){
+  if(intensity < 0.05) return;
+  const originalPos = camera.position.clone(); let shakeCount = 0;
+  const shake = setInterval(() => {
+    camera.position.x = originalPos.x + (Math.random() - 0.5) * intensity;
+    camera.position.y = originalPos.y + (Math.random() - 0.5) * intensity;
+    intensity *= 0.85; shakeCount++;
+    if(shakeCount > 5 || intensity < 0.01){ clearInterval(shake); camera.position.copy(originalPos); }
+  }, 30);
+}
+
+/* ====== MÉTÉO / TRANSITIONS ====== */
+function setDaySky(){
+  document.body.classList.remove('sunset','eruption','night');
+  tweenFog(0x0c1822, 0.6);
+  removeStars();
+}
+function setSunsetSky(){
+  document.body.classList.remove('eruption','night');
+  document.body.classList.add('sunset');
+  tweenFog(0x5c2b16, 0.6);
+}
+function setNightSky(){
+  document.body.classList.remove('sunset','eruption');
+  document.body.classList.add('night');
+  tweenFog(0x050914, 0.6);
+  showStars();
+}
+function tweenFog(toHex, duration=0.6){
+  if(!scene || !scene.fog) return;
+  const from = scene.fog.color.clone();
+  const to = new THREE.Color(toHex);
+  let t = 0;
+  const step = () => {
+    t += 1/(duration*60);
+    const k = Math.min(1,t);
+    scene.fog.color.r = from.r + (to.r - from.r)*k;
+    scene.fog.color.g = from.g + (to.g - from.g)*k;
+    scene.fog.color.b = from.b + (to.b - from.b)*k;
+    if(k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+function showStars(){
+  if(starsCanvas) return;
+  starsCanvas = document.createElement('canvas');
+  starsCanvas.id = 'starsCanvas';
+  starsCanvas.width = window.innerWidth;
+  starsCanvas.height = window.innerHeight;
+  document.body.appendChild(starsCanvas);
+  const ctx = starsCanvas.getContext('2d');
+  const count = Math.floor((window.innerWidth * window.innerHeight) / 4500);
+  for(let i=0;i<count;i++){
+    const x = Math.random()*starsCanvas.width;
+    const y = Math.random()*starsCanvas.height;
+    const r = Math.random()*1.2 + 0.4;
+    ctx.globalAlpha = 0.5 + Math.random()*0.5;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+  }
+  window.addEventListener('resize', resizeStars, { once:false });
+}
+function resizeStars(){
+  if(!starsCanvas) return;
+  starsCanvas.width = window.innerWidth;
+  starsCanvas.height = window.innerHeight;
+  const ctx = starsCanvas.getContext('2d');
+  const count = Math.floor((window.innerWidth * window.innerHeight) / 4500);
+  ctx.clearRect(0,0,starsCanvas.width,starsCanvas.height);
+  for(let i=0;i<count;i++){
+    const x = Math.random()*starsCanvas.width;
+    const y = Math.random()*starsCanvas.height;
+    const r = Math.random()*1.2 + 0.4;
+    ctx.globalAlpha = 0.5 + Math.random()*0.5;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+  }
+}
+function removeStars(){
+  if(starsCanvas && starsCanvas.parentNode){
+    starsCanvas.parentNode.removeChild(starsCanvas);
+    starsCanvas = null;
+  }
+}
+
+/* ====== LOOP ====== */
+let secAcc = 0;
+function loop(){
+  const dt = clock.getDelta();
+
+  if(running){
+    secAcc += dt;
+    while(secAcc >= 1){
+      secAcc -= 1; timeLeft--;
+      if(timeLeft === 20 && !sunset){ sunset = true; setSunsetSky(); }
+      ui.timer.innerHTML = timeLeft <= 10 ? `<b class="low">${timeLeft}</b>` : `<b>${timeLeft}</b>`;
+      document.title = `⏱️ ${Math.max(0,timeLeft)}s — Tape-la-taupe — Ultra 3D Enhanced`;
+      if(timeLeft <= 0) end();
+    }
+
+    if(comboTimer > 0){ comboTimer -= dt; if(comboTimer <= 0){ combo = 0; ui.combo.classList.remove('active'); } }
+
+    spawnTimer += dt;
+    let base = Math.max(0.35, (0.85 - score * 0.0005));
+    if (timeLeft <= 10) base /= 2.2;
+    if(spawnTimer >= base){ spawnTimer = 0; spawn(); }
+
+    tickCreatures(dt);
+
+    if(timeLeft <= 10 && !rush){
+      clouds.forEach(c => c.userData.speed *= 1.6);
+      rush = true; 
+      tweenFog(0x4a1810, 0.6);
+      startEruption();
+    }
+    
+    updateLavaParticles(dt);
+    if(rush) updateLavaFlows(dt);
+  }
+
+  if(CAM.zooming){
+    CAM.t = Math.min(1, CAM.t + 0.03);
+    camera.position.lerpVectors(CAM.start, CAM.play, CAM.t);
+  }
+
+  clouds.forEach(c => { c.position.x += c.userData.speed; if(c.position.x > 25) c.position.x = -25; });
+
+  for(let i = particles.length - 1; i >= 0; i--){
+    const p = particles[i];
+    if(p.userData && p.userData.velocities){
+      const positions = p.geometry.attributes.position; p.userData.life -= 0.04;
+      if(p.userData.life <= 0){ scene.remove(p); p.geometry.dispose(); p.material.dispose(); particles.splice(i, 1); continue; }
+      p.material.opacity = p.userData.life;
+      for(let j = 0; j < p.userData.velocities.length; j++){ const v = p.userData.velocities[j]; positions.setY(j, positions.getY(j) + v.y); v.y -= 0.02; }
+      positions.needsUpdate = true;
+    }
+  }
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+
+/* ====== MENUS / ANIMATIONS ====== */
+function show(el, animate = true){
+  const menus = [ui.menu, ui.rules, ui.scores, ui.challenges, ui.over];
+  const currentMenu = menus.find(e => e.style.display === 'flex');
+  if(animate && currentMenu && currentMenu !== el) {
+    currentMenu.classList.add('sliding-out');
+    setTimeout(() => {
+      currentMenu.style.display = 'none';
+      currentMenu.classList.remove('sliding-out', 'active');
+      if(el) { el.style.display = 'flex'; el.classList.add('active'); }
+    }, 300);
+  } else {
+    menus.forEach(e => { e.style.display = 'none'; e.classList.remove('active'); });
+    if(el) { el.style.display = 'flex'; el.classList.add('active'); }
+  }
+}
+
+function resetRun(){
+  statsRun.hit.normal = 0; statsRun.hit.gold = 0; statsRun.hit.fox = 0; statsRun.hit.blue = 0;
+  statsRun.seen.normal = 0; statsRun.seen.gold = 0; statsRun.seen.fox = 0; statsRun.seen.blue = 0;
+  statsRun.clicks = 0; statsRun.hits = 0; statsRun.maxCombo = 0;
+  combo = 0; maxCombo = 0; comboTimer = 0;
+}
+
+let quitBtn = null;
+let isQuitting = false;
+let zoomOutId = null;
+
+function start(){
+  moles.forEach(m => scene.remove(m)); moles = []; holes.forEach(h => h.occupied = false);
+
+  resetRun(); running = true; rush = false; sunset = false; score = 0; timeLeft = 30; spawnTimer = 0; secAcc = 0;
+  blueLeft = 3;
+
+  setDaySky();
+  ui.score.textContent = '0'; ui.timer.textContent = '30'; ui.combo.classList.remove('active');
+  ui.hud.style.display = 'flex'; show(null, false);
+
+  CAM.t = 0; CAM.zooming = true;
+  stopEruption();
+
+  homeSeq.mute = true; gameSeq.mute = false; Tone.Transport.bpm.value = 100;
+  document.title = `⏱️ ${timeLeft}s — Tape-la-taupe — Ultra 3D Enhanced`;
+
+  calibrateTopUI();
+  ensureQuitButton();
+
+  spawn();
+}
+
+function end(){
+  running = false; ui.hud.style.display = 'none'; CAM.zooming = false;
+
+  removeQuitButton();
+  placeMusicDefault();
+  stopEruption();
+
+  setNightSky();
+
+  // MAJ défis du jour avec la partie qui vient de se finir
+  updateDailyWithRun();
+
+  saveScore(); renderEnd(); show(ui.over, true);
+
+  gameSeq.mute = true; homeSeq.mute = false; Tone.Transport.bpm.value = 60;
+  document.title = ORIGINAL_TITLE;
+}
+
+/* Quitter -> dézoom retour menu */
+function quitToMenu(){
+  if(isQuitting) return; isQuitting = true;
+  running = false;
+  CAM.zooming = false;
+  secAcc = 0; spawnTimer = 0;
+
+  if(zoomOutId) clearInterval(zoomOutId);
+  let t = 1;
+  zoomOutId = setInterval(() => {
+    t = Math.max(0, t - 0.05);
+    camera.position.lerpVectors(CAM.play, CAM.menu, 1 - t);
+    if(t <= 0) {
+      clearInterval(zoomOutId);
+      zoomOutId = null;
+      camera.position.copy(CAM.start);
+    }
+  }, 30);
+  
+  ui.hud.style.opacity = '0';
+  setTimeout(()=>{
+    ui.hud.style.opacity = '';
+    ui.hud.style.display = 'none';
+    removeQuitButton();
+    placeMusicDefault();
+    stopEruption();
+    moles.forEach(m => scene.remove(m)); moles = []; holes.forEach(h => h.occupied = false);
+    homeSeq.mute = false; gameSeq.mute = true; Tone.Transport.bpm.value = 60;
+
+    rush = false; sunset = false; setDaySky();
+
+    show(ui.menu, true);
+    document.title = ORIGINAL_TITLE;
+    isQuitting = false;
+  }, 500);
+}
+
+/* Scores / Stats */
+function saveScore(){
+  const arr = JSON.parse(localStorage.getItem('ultra3dScores') || '[]');
+  arr.push({ s: score, t: Date.now(), hit: statsRun.hit, seen: statsRun.seen, clicks: statsRun.clicks, hits: statsRun.hits, maxCombo: statsRun.maxCombo });
+  localStorage.setItem('ultra3dScores', JSON.stringify(arr.slice(-50)));
+}
+function renderScores(){
+  const all = JSON.parse(localStorage.getItem('ultra3dScores') || '[]');
+
+  const latest = [...all].slice(-10).reverse();
+  const top = [...all].sort((a,b) => b.s - a.s).slice(0,10);
+
+  ui.list.innerHTML = latest.length
+    ? latest.map((e,i) => ` <b>${e.s} pts</b> (Combo: ${e.maxCombo || 0})`).join('<br>')
+    : 'Aucune partie';
+
+  ui.best.innerHTML = top.length
+  ? top.map((e,i) => {
+      const rank = i+1;
+      const medal = rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':'';
+      if (rank <= 3) {
+        return `${medal} <b>${e.s} pts</b> (Combo: ${e.maxCombo || 0})`;
+      } else {
+        return `#${rank} — <b>${e.s} pts</b> (Combo: ${e.maxCombo || 0})`;
+      }
+    }).join('<br>')
+  : 'Aucune partie';
+
+  if(!all.length){
+    ui.stats.innerHTML = '<div class="stat">Pas de données</div>';
+    return;
+  }
+
+  const n = all.length;
+  const avg = (x) => (x/n).toFixed(1);
+  const sum = all.reduce((a,e) => {
+    a.score += e.s; a.clicks += (e.clicks||0); a.hits += (e.hits||0);
+    a.hn += (e.hit?.normal||0); a.hg += (e.hit?.gold||0); a.hf += (e.hit?.fox||0); a.hb += (e.hit?.blue||0);
+    a.sn += (e.seen?.normal||0); a.sg += (e.seen?.gold||0); a.sf += (e.seen?.fox||0); a.sb += (e.seen?.blue||0);
+    a.maxCombo = Math.max(a.maxCombo, e.maxCombo || 0);
+    return a;
+  }, {score:0, clicks:0, hits:0, hn:0, hg:0, hf:0, hb:0, sn:0, sg:0, sf:0, sb:0, maxCombo:0});
+
+  const acc = sum.clicks ? Math.round(100 * sum.hits / sum.clicks) : 0;
+  const rate = (h,s) => s ? Math.round(100*h/s) : 0;
+
+  ui.stats.innerHTML = `
+    <div class="stat">Nb de parties : <b>${n}</b></div>
+    <div class="stat">Score moyen : <b>${avg(sum.score)}</b></div>
+    <div class="stat">Précision moyenne : <b>${acc}%</b></div>
+    <div class="stat">Taupes : <b>${sum.hn}</b> / ${sum.sn} (${rate(sum.hn,sum.sn)}%)</div>
+    <div class="stat">Taupes d'or : <b>${sum.hg}</b> / ${sum.sg} (${rate(sum.hg,sum.sg)}%)</div>
+    <div class="stat">Bleues : <b>${sum.hb}</b> / ${sum.sb} (${rate(sum.hb,sum.sb)}%)</div>
+    <div class="stat">Renards touchés : <b>${sum.hf}</b> / ${sum.sf}</div>
+    <div class="stat">Meilleur combo : <b>${sum.maxCombo}</b></div>
+  `;
+}
+
+function renderEnd(){
+  ui.final.textContent = 'Score : ' + score;
+  const acc = statsRun.clicks ? Math.round(100 * statsRun.hits / statsRun.clicks) : 0;
+  ui.resume.innerHTML = `Précision <b>${acc}%</b> • Taupes <b>${statsRun.hit.normal}</b> • Or <b>${statsRun.hit.gold}</b> • Renards <b>${statsRun.hit.fox}</b> • Combo max <b>${statsRun.maxCombo}</b>`;
+  const ratio = (h,s) => s ? Math.round(100 * h / s) : 0;
+  ui.details.innerHTML = `
+    <div style="line-height:1.8">
+      <strong>Apparitions :</strong><br>
+      Taupes: <b>${statsRun.seen.normal}</b>, Or: <b>${statsRun.seen.gold}</b>, Renards: <b>${statsRun.seen.fox}</b>, Bleues: <b>${statsRun.seen.blue}</b><br><br>
+      <strong>Performance :</strong><br>
+      Taupes touchées: <b>${statsRun.hit.normal}</b> (<b>${ratio(statsRun.hit.normal,statsRun.seen.normal)}%</b>)<br>
+      Or touchés: <b>${statsRun.hit.gold}</b> (<b>${ratio(statsRun.hit.gold,statsRun.seen.gold)}%</b>)<br>
+      Bleues touchées: <b>${statsRun.hit.blue}</b> / <b>${statsRun.seen.blue}</b><br>
+      Renards touchés: <b>${statsRun.hit.fox}</b> / <b>${statsRun.seen.fox}</b><br>
+      Combo maximum: <b>${statsRun.maxCombo}</b>
+    </div>
+  `;
+}
+
+/* ====== UI HELPERS ====== */
+function calibrateTopUI(){
+  const hudRect = ui.hud.getBoundingClientRect();
+  const top = hudRect.top + (hudRect.height - 44) / 2;
+  ui.musicPanel.style.top = top + 'px';
+  ui.musicPanel.style.right = '20px';
+}
+function placeMusicDefault(){ ui.musicPanel.style.top = '20px'; }
+
+function ensureQuitButton(){
+  if(quitBtn){ quitBtn.style.display='inline-block'; return; }
+  quitBtn = document.createElement('button');
+  quitBtn.className = 'quit-bubble';
+  quitBtn.type = 'button';
+  quitBtn.textContent = 'Quitter';
+  quitBtn.setAttribute('aria-label','Quitter et revenir au menu');
+  quitBtn.addEventListener('click', quitToMenu);
+  document.body.appendChild(quitBtn);
+}
+function removeQuitButton(){
+  if(quitBtn){ quitBtn.style.display='none'; }
+}
+
+/* ====== EVENTS ====== */
+document.getElementById('playBtn').onclick = () => start();
+document.getElementById('rulesBtn').onclick = () => show(ui.rules, true);
+document.getElementById('scoresBtn').onclick = () => { renderScores(); show(ui.scores, true); };
+document.getElementById('challengesBtn').onclick = () => { renderChallenges(); show(ui.challenges, true); };
+document.getElementById('backRules').onclick = () => show(ui.menu, true);
+document.getElementById('backScores').onclick = () => show(ui.menu, true);
+document.getElementById('backChallenges').onclick = () => show(ui.menu, true);
+document.getElementById('again').onclick = () => start();
+
+document.getElementById('backMenu').onclick = () => {
+  rush = false; sunset = false;
+  stopEruption();
+  setDaySky();
+  show(ui.menu, true);
+};
+
+ui.detailsBtn.onclick = () => ui.modal.classList.add('active');
+ui.closeDetails.onclick = () => ui.modal.classList.remove('active');
+
+function onResize(){
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  if(starsCanvas){ resizeStars(); }
+  if(running) calibrateTopUI();
+}
+
+/* ====== START ====== */
+init3D();
+show(ui.menu, false);
+homeSeq.mute = false;
+gameSeq.mute = true;
+Tone.Transport.bpm.value = 60;
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
